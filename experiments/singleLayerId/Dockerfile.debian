@@ -1,3 +1,3 @@
 FROM debian
 
-COPY resolv.conf /etc/
+COPY blah.conf /etc/
