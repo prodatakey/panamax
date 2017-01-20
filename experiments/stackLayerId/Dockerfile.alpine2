@@ -1,0 +1,3 @@
+FROM stacklayerid1
+
+RUN rm /etc/strange.conf
