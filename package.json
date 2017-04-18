@@ -7,5 +7,9 @@
     "test": "make test"
   },
   "author": "Joshua Perry <josh@pdk.io>",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "bunyan": "^1.8.5",
+    "docker-registry-client": "^3.2.6"
+  }
 }

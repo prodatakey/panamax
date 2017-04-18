@@ -90,6 +90,49 @@ Another easy test would be to do the delta with each image's layers in a tar.
 Interesting. The deltas on the individual layers sum to about 2M but a delta of the combined layers comes in at a hefty 53MB.
 Perhaps some tweaking of xdelta could help a little, but I doubt by 25x.
 
+Testing with an increased source window size actually provides better compression than even the layers individually.
+
+The individual layers delta comes to 1986373 bytes, and the full image delta:
+
+```console
+# xdelta3 -B 1000000000 -s nginx-1.11.7.tar nginx-1.11.8.tar nginx.delta
+# ls -la nginx*
+-rw-r--r--  1 josh josh 189597184 Apr 17 18:49 nginx-1.11.7.tar
+-rw-r--r--  1 josh josh 189599744 Apr 17 18:49 nginx-1.11.8.tar
+-rw-r--r--  1 josh josh   1935144 Apr 17 18:50 nginx.delta
+```
+
+With this it looks like doing a delta on the whole image is going to be just as efficient as going through layer matching machinations.
+
+The only feature this may impact is efficiently sending an image where an old version of the same is not already on the target host.
+
+Trying a delta between two images that share the same base OS and runtime layers does work well:
+
+```console
+# xdelta3 -B 1000000000 -s server1.tar server2.tar server.delta
+# ls -la server*
+-rw-r--r--  1 josh josh 382237696 Apr 17 19:06 server1.tar
+-rw-r--r--  1 josh josh 270725632 Apr 17 18:11 server2.tar
+-rw-r--r--  1 josh josh   9321569 Apr 17 19:17 server.delta
+```
+
+This looks to be viable method of sending, even dissimilar images, by doing a hamming check (like described in the next section) between images that do exist on the target to see if any are similar enough to bother with a binary diff.
+
+Doing a diff with an image that uses a similar, but different distribution, Linux OS and completely different workload shows that we can still best gzip:
+
+```console
+# xdelta3 -B 1000000000 -s postgres.tar server.tar different.delta 
+# ls -la
+-rw-r--r--  1 josh josh  42927435 Apr 17 19:47 different.delta
+-rw-r--r--  1 josh josh 128911872 Apr 17 19:38 postgres.tar
+-rw-r--r--  1 josh josh 270725632 Apr 17 18:11 server.tar
+# gzip server.tar
+# ls -la server.tar.gz
+-rw-r--r--  1 josh josh  88227974 Apr 17 18:11 server.tar.gz
+```
+
+This particular delta shows that we've been able to save another 50% over gzip.
+
 ### Finding Corresponding Layers
 
 One obvious way to find what layer would be best to use as the source is to take every layer in the target image and calculate a binary delta against every layer in every image on the target node.

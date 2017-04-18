@@ -35,3 +35,5 @@ If the layerId is based on the contents of the whole stack then the first and la
 ## Answer
 
 Nope, it looks like the content-based layer IDs are different for layers that have identical content but different parent.
+
+In this case it turns out to be because of how docker implements [whiteouts and opaque directories](https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt). This is also caused because the mtime of files is set to the build date even when they don't change see the singleLayerId experiment for more info.

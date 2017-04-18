@@ -1,5 +1,7 @@
-docker build -t layerid-alpine -f Dockerfile.alpine .
-docker build -t layerid-debian -f Dockerfile.debian .
+docker build -t layerid-alpine -f Dockerfile.alpine . &
+docker build -t layerid-debian -f Dockerfile.debian . &
+
+wait
 
 docker inspect layerid-alpine
 docker inspect layerid-debian
