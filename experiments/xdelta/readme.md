@@ -18,7 +18,7 @@ Here we'll analyze layers from two versions of nginx `1.11.7` and `1.11.8`.
 The `pull.js` script grabs the registry manifest, image manifest, and all layers for these images from docker hub.
 
 If we look at the layers we see what is expected in an image that has been rebuilt for an update.
-This is particularly poignant because of the necessity of updating directory mtimes to the image build time found in the singleLayerId experiment.
+This is particularly poignant because of the necessity of updating directory mtimes to the image build time found in the [singleLayerId](https://github.com/prodatakey/panamax/tree/master/experiments/singleLayerId) experiment.
 
 ```console
 -rw-r--r--  1 josh staff 3.5K Jan 21 15:21 layer-1.11.7-sha256:325b624bee1c2cdb2a603102412eec6fc20386a60965f33244f1ef256f29e299.tar
