@@ -16,8 +16,8 @@ Because of how the docker build system modifies mtimes when it copies files into
 we've found that we can't rely on the layer hashes that docker generates in order to judge changed layers.
 
 We were mainly interested in this to do layer-level deltas of each filesystem at each layer in the stack, even between
-totally different containers that share base layers. Why transfer layer 1-4 when just a couple files in the base layer
-change, and transfer them once again for each container that shares a progenitor layer chain.
+totally different images that share base layers. Why transfer layer 1-4 when just a couple files in the base layer
+change, and transfer them once again for each image that shares a progenitor layer chain.
 
 We would need to crack open each layer and do a full-content hash of each file in each layer's filesystem ourselves.
 In order to do this, we would need to also rebuild the filesystem while taking whiteouts into account
