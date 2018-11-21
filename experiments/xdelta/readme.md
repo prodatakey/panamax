@@ -6,7 +6,7 @@ How about a layer from a different image?
 Does doing a delta against an unrelated source layer have better win when the source layer is much larger than the target?
 
 The big benefit here would be that we can leverage layers already resident on a target node to create a binary delta for a layer that we _want_ on the node.
-This will be most beneficial if the service generating these diff packages has local high-speed connectivity to the source registry.
+This process will work best if the service generating these delta packages has local high-speed connectivity to the source registry.
 
 bzip2 gives us about 15-20:1 compression ratio for the couple images I tried it on. Docker registry uses gzip when handling layers but `docker save` and `docker load` do not.
 The hope is to be able to improve on this ratio by more than an order of magnitude in most cases.
@@ -18,7 +18,7 @@ Here we'll analyze layers from two versions of nginx `1.11.7` and `1.11.8`.
 The `pull.js` script grabs the registry manifest, image manifest, and all layers for these images from docker hub.
 
 If we look at the layers we see what is expected in an image that has been rebuilt for an update.
-This is particularly poignant because of the necessity of updating directory mtimes to the image build time found in the [singleLayerId](https://github.com/prodatakey/panamax/tree/master/experiments/singleLayerId) experiment.
+This is particularly poignant because of the necessity of updating directory mtimes to the image build time, as found in the [singleLayerId](https://github.com/prodatakey/panamax/tree/master/experiments/singleLayerId) experiment.
 
 ```console
 -rw-r--r--  1 josh staff 3.5K Jan 21 15:21 layer-1.11.7-sha256:325b624bee1c2cdb2a603102412eec6fc20386a60965f33244f1ef256f29e299.tar
@@ -30,16 +30,16 @@ This is particularly poignant because of the necessity of updating directory mti
 -rw-r--r--  1 josh staff 123M Jan 21 15:16 layer-1.11.8-sha256:5040bd2983909aa8896b9932438c3f1479d25ae837a5f6220242a264d0221f2d.tar
 ```
 
-Each layer has a corresponding layer in the other image and they share nearly identical sizes.
-In this case none of the layers share identical hashes so we can not save resources with the elide-identical-layers strategy.
+In this case, each layer has a corresponding layer in the other image and they share nearly identical sizes.
+None of the layers share identical hashes so we can not easily save resources using an elide-identical-layers strategy.
 
-We can easily tell which layers in this sample are derived from the same commands in each release. All updates will not be this unambiguous.
-How, for example, do we teach the system to find corresponding layers when one is added or removed in a later build or they vary wildly in size?
+We _can_ easily tell which layers in this sample are derived from the same commands in each release. All updates will not be this unambiguous.
+How, for example, do we teach the system to find corresponding layers when one is added or removed in a later build or they vary wildly in size and/or depth?
 
 ### Corresponding Layer Delta
 
 Our goal is to find the minimum binary delta for a target layer by leveraging another layer.
-Logic seems to dictate that if we diff layers have the most similarities that we'll get the smallest delta. Let's give it a try.
+Logic seems to dictate that two layers with the most similarities will have the smallest delta. Let's give it a try.
 
 ```console
 # xdelta3 -s layer-1.11.7-sha256:325b624bee1c2cdb2a603102412eec6fc20386a60965f33244f1ef256f29e299.tar -f layer-1.11.8-sha256:9cac4850e5df710bce8b514acee92630e27f36761a36e55cbef0cc8d1d0317d5.tar > layer1.delta
@@ -67,8 +67,8 @@ Let's compare to gzip compression:
 ```
 
 Looks like binary delta beats gzip in all cases except the incredibly small 3.5K layer.
-The 100 bytes might not be worth the complexity of deciding when we should use a binary delta vs sending the layer compressed instead.
-Though, this determination would be valuable in cases where the target node has no image layers with a decent delta from the target image.
+The 100 bytes might not be worth the complexity of deciding when we should use a binary delta vs sending the layer huffman compressed instead.
+Though, this determination would be valuable in cases where the target node has no image layers with a decently small delta from the target image.
 
 Another good test would be to do a delta on all files contained in the two layers and see if we get a better aggregate size than doing a delta on the layers themselves.
 This would be fairly complex, and considering the sizes of the deltas that we've been able to achieve so far doesn't really bear out the necessity of testing this method right now.
@@ -104,7 +104,7 @@ The individual layers delta comes to 1986373 bytes, and the full image delta:
 
 With this it looks like doing a delta on the whole image is going to be just as efficient as going through layer matching machinations.
 
-The only feature this may impact is efficiently sending an image where an old version of the same is not already on the target host.
+The only feature this may impact is efficiently sending an image where an older version of the same is not already resident on the target host.
 
 Trying a delta between two images that share the same base OS and runtime layers does work well:
 
@@ -116,7 +116,7 @@ Trying a delta between two images that share the same base OS and runtime layers
 -rw-r--r--  1 josh josh   9321569 Apr 17 19:17 server.delta
 ```
 
-This looks to be viable method of sending, even dissimilar images, by doing a hamming check (like described in the next section) between images that do exist on the target to see if any are similar enough to bother with a binary diff.
+This looks to be a viable method of transferring even largely dissimilar images. By doing a hamming check (like described in the next section) between the image we want to send and images that already exist on the target we can check if any are similar enough to bother with a binary diff.
 
 Doing a diff with an image that uses a similar, but different distribution, Linux OS and completely different workload shows that we can still best gzip:
 
@@ -131,15 +131,15 @@ Doing a diff with an image that uses a similar, but different distribution, Linu
 -rw-r--r--  1 josh josh  88227974 Apr 17 18:11 server.tar.gz
 ```
 
-This particular delta shows that we've been able to save another 50% over gzip.
+This particular delta shows that we've been able cut traffic in half over gzip.
 
 ### Finding Corresponding Layers
 
 One obvious way to find what layer would be best to use as the source is to take every layer in the target image and calculate a binary delta against every layer in every image on the target node.
 This could give us an advantage in cases where the target node has no layers from an earlier build of the target transfer image.
-The downside of this method is that we have no way efficient way to compare the viability of a source and target layer pair without actually calculating a delta.
+The downside of this method is that we have no way to efficiently compare the viability of a source and target layer pair without actually calculating a delta.
 
-This isn't inviable, but having a method to compare how different two images using a once computed value would save a large amount of IO and CPU resources.
+This isn't inviable, but having a method to compare how different two images are, using a once-computed value would save a large amount of IO and CPU resources.
 
 One method that could work to give us a qualitative value to the viability of two layers being used for a binary delta is the [Locality Sensitive Hash](https://en.wikipedia.org/wiki/Locality-sensitive_hashing).
 This hashing process, quite the opposite of cryptographic hashes, will create values that are "close" to eachother when the contents of two inputs are close to eachother.
